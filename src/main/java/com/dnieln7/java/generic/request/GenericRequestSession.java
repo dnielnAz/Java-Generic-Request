@@ -231,7 +231,7 @@ public class GenericRequestSession<T> {
      * @return The response data casted to the configured type.
      * @throws ResponseException If theres an error with the request.
      */
-    public T sendRequestWithArgs(T input) throws ResponseException {
+    public T sendRequestWithArgs(Object input) throws ResponseException {
         BufferedReader response;
 
         try {
