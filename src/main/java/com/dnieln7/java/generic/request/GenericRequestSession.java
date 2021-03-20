@@ -4,6 +4,7 @@ import com.dnieln7.java.generic.request.exception.BuilderException;
 import com.dnieln7.java.generic.request.exception.ResponseException;
 import com.dnieln7.java.generic.request.utils.RequestMethod;
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import java.io.BufferedReader;
@@ -14,7 +15,7 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
-import java.util.Map;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -23,16 +24,15 @@ import java.util.logging.Logger;
  *
  * @author dnieln7
  */
-public class GenericRequestSession<T> {
+public class GenericRequestSession {
 
     /**
      * Builder to create new instances of {@link GenericRequestSession}
      *
      * @author dnieln7
      */
-    public static class Builder<T> {
+    public static class Builder {
         private String url;
-        private Class<T> typeClass;
         private RequestMethod requestMethod;
         private Integer responseCode;
         private Boolean doOutput;
@@ -44,12 +44,17 @@ public class GenericRequestSession<T> {
          *     <li>{@link RequestMethod} -> GET</li>
          *     <li>Response Code -> 200</li>
          *     <li>Do Output -> false</li>
+         *     <li>Request properties -> <br> {"Content-Type" : "application/json", "Accept" : "application/json"}</li>
          * </ul>
          */
-        public Builder() {
+        public Builder(String url) {
+            this.url = url;
             this.requestMethod = RequestMethod.GET;
             this.responseCode = 200;
             this.doOutput = false;
+            this.requestProperties = new HashMap<>();
+            this.requestProperties.put("Content-Type", "application/json");
+            this.requestProperties.put("Accept", "application/json");
         }
 
         /**
@@ -58,19 +63,9 @@ public class GenericRequestSession<T> {
          * @param url Valid url to send requests.
          * @return The current {@link Builder} instance.
          */
-        public Builder<T> to(String url) {
+        public Builder to(String url) {
             this.url = url;
 
-            return this;
-        }
-
-        /**
-         * Sets the type to cast the response data.
-         *
-         * @return The current {@link Builder} instance.
-         */
-        public Builder<T> ofType(Class<T> typeClass) {
-            this.typeClass = typeClass;
             return this;
         }
 
@@ -80,7 +75,7 @@ public class GenericRequestSession<T> {
          * @param requestMethod A {@link RequestMethod} item.
          * @return The current {@link Builder} instance.
          */
-        public Builder<T> withMethod(RequestMethod requestMethod) {
+        public Builder withMethod(RequestMethod requestMethod) {
             this.requestMethod = requestMethod;
 
             return this;
@@ -94,7 +89,7 @@ public class GenericRequestSession<T> {
          * @param responseCode Expected response code.
          * @return The current {@link Builder} instance.
          */
-        public Builder<T> withResponseCode(Integer responseCode) {
+        public Builder withResponseCode(Integer responseCode) {
             this.responseCode = responseCode != null ? responseCode : 200;
 
             return this;
@@ -106,7 +101,7 @@ public class GenericRequestSession<T> {
          * @param output Whether the request should have a body.
          * @return The current {@link Builder} instance.
          */
-        public Builder<T> withOutput(Boolean output) {
+        public Builder withOutput(Boolean output) {
             this.doOutput = output != null ? output : Boolean.FALSE;
 
             return this;
@@ -118,7 +113,7 @@ public class GenericRequestSession<T> {
          * @param requestProperties A {@link Map} containing the key - value, properties.
          * @return The current {@link Builder} instance.
          */
-        public Builder<T> withRequestProperties(Map<String, String> requestProperties) {
+        public Builder withRequestProperties(Map<String, String> requestProperties) {
             this.requestProperties = requestProperties;
 
             return this;
@@ -130,9 +125,9 @@ public class GenericRequestSession<T> {
          * @return A new instance of {@link GenericRequestSession}.
          * @throws BuilderException If there´s an error in the process.
          */
-        public GenericRequestSession<T> build() throws BuilderException {
+        public GenericRequestSession build() throws BuilderException {
             URL urlObject;
-            GenericRequestSession<T> genericRequestSession = null;
+            GenericRequestSession genericRequestSession = null;
 
             try {
                 urlObject = new URL(this.url);
@@ -141,13 +136,14 @@ public class GenericRequestSession<T> {
             }
 
             try {
-                genericRequestSession = new GenericRequestSession<>((HttpURLConnection) urlObject.openConnection());
+                genericRequestSession = new GenericRequestSession(
+                        (HttpURLConnection) urlObject.openConnection(),
+                        this.responseCode,
+                        this.doOutput,
+                        this.requestProperties
+                );
 
-                genericRequestSession.setTypeClass(this.typeClass);
                 genericRequestSession.setRequestMethod(this.requestMethod);
-                genericRequestSession.setResponseCode(this.responseCode);
-                genericRequestSession.setDoOutput(this.doOutput);
-                genericRequestSession.setRequestProperties(this.requestProperties);
 
             } catch (IOException e) {
                 Logger.getLogger(Builder.class.getName()).log(Level.SEVERE, "There was an error", e);
@@ -158,16 +154,13 @@ public class GenericRequestSession<T> {
     }
 
     private final HttpURLConnection connection;
+    private final Integer responseCode;
 
-    private Class<T> typeClass;
-    private Integer responseCode;
-
-    private GenericRequestSession(HttpURLConnection connection) {
+    private GenericRequestSession(HttpURLConnection connection, Integer responseCode, Boolean doOutput, Map<String, String> properties) {
         this.connection = connection;
-    }
-
-    private void setTypeClass(Class<T> typeClass) {
-        this.typeClass = typeClass;
+        this.connection.setDoOutput(doOutput);
+        properties.forEach((key, value) -> this.connection.setRequestProperty(key, value));
+        this.responseCode = responseCode;
     }
 
     private void setRequestMethod(RequestMethod requestMethod) {
@@ -178,18 +171,6 @@ public class GenericRequestSession<T> {
         }
     }
 
-    private void setResponseCode(Integer responseCode) {
-        this.responseCode = responseCode;
-    }
-
-    private void setDoOutput(boolean doOutput) {
-        connection.setDoOutput(doOutput);
-    }
-
-    private void setRequestProperties(Map<String, String> properties) {
-        properties.keySet().forEach(key -> connection.setRequestProperty(key, properties.get(key)));
-    }
-
     private void logError(Throwable error) {
         Logger.getLogger(GenericRequestSession.class.getName()).log(Level.SEVERE, "There was an error", error);
     }
@@ -197,10 +178,11 @@ public class GenericRequestSession<T> {
     /**
      * Sends a basic request using the configuration of the actual {@link GenericRequestSession} instance.
      *
+     * @param typeClass Type to cast the response data.
      * @return The response data casted to the configured type.
      * @throws ResponseException If theres an error with the request.
      */
-    public T sendRequest() throws ResponseException {
+    public <T> T sendRequest(Class<T> typeClass) throws ResponseException {
         BufferedReader response;
 
         try {
@@ -226,19 +208,130 @@ public class GenericRequestSession<T> {
     }
 
     /**
-     * Sends a request with a body using the configuration of the actual {@link GenericRequestSession} instance.
+     * Sends a basic request using the configuration of the actual {@link GenericRequestSession} instance.
      *
+     * @param typeClass Array type to cast the response data.
      * @return The response data casted to the configured type.
      * @throws ResponseException If theres an error with the request.
      */
-    public T sendRequestWithArgs(Object input) throws ResponseException {
+    public <T> List<T> sendRequestExpectingList(Class<T[]> typeClass) throws ResponseException {
         BufferedReader response;
 
         try {
-            String jsonInput = new Gson().toJson(input);
+            if (connection.getResponseCode() != responseCode) {
+
+                response = new BufferedReader(new InputStreamReader(connection.getErrorStream()));
+
+                throw new ResponseException(
+                        "Failed: Http error code: " + connection.getResponseCode(),
+                        new JsonParser().parse(response.readLine()).getAsJsonObject()
+                );
+            }
+
+            response = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+
+            return Arrays.asList(new Gson().fromJson(response.readLine(), typeClass));
+        } catch (IOException e) {
+            logError(e);
+            return new ArrayList<>();
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    /**
+     * Sends a request with a body using the configuration of the actual {@link GenericRequestSession} instance.
+     *
+     * @param typeClass Type to cast the response data.
+     * @param body      An object to send as the body.
+     * @return The response data casted to the supplied type.
+     * @throws ResponseException If theres an error with the request.
+     */
+    public <T> T sendRequestWithBody(Class<T> typeClass, Object body) throws ResponseException {
+        BufferedReader response;
+
+        try {
+            String jsonInput = new Gson().toJson(body);
             OutputStream output = connection.getOutputStream();
 
             output.write(jsonInput.getBytes());
+            output.flush();
+
+            if (connection.getResponseCode() != responseCode) {
+
+                response = new BufferedReader(new InputStreamReader(connection.getErrorStream()));
+
+                throw new ResponseException(
+                        "Failed: Http error code: " + connection.getResponseCode(),
+                        new JsonParser().parse(response.readLine()).getAsJsonObject()
+                );
+            }
+
+            response = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+
+            return new Gson().fromJson(response.readLine(), typeClass);
+        } catch (IOException e) {
+            logError(e);
+            return null;
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    /**
+     * Sends a request with a body using the configuration of the actual {@link GenericRequestSession} instance.
+     *
+     * @param typeClass Type to cast the response data.
+     * @param body      A {@link JsonObject} instance to send as the body.
+     * @return The response data casted to the supplied type.
+     * @throws ResponseException If theres an error with the request.
+     */
+    public <T> T sendRequestWithBody(Class<T> typeClass, JsonObject body) throws ResponseException {
+        BufferedReader response;
+
+        try {
+            String jsonInput = body.toString();
+            OutputStream output = connection.getOutputStream();
+
+            output.write(jsonInput.getBytes());
+            output.flush();
+
+            if (connection.getResponseCode() != responseCode) {
+
+                response = new BufferedReader(new InputStreamReader(connection.getErrorStream()));
+
+                throw new ResponseException(
+                        "Failed: Http error code: " + connection.getResponseCode(),
+                        new JsonParser().parse(response.readLine()).getAsJsonObject()
+                );
+            }
+
+            response = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+
+            return new Gson().fromJson(response.readLine(), typeClass);
+        } catch (IOException e) {
+            logError(e);
+            return null;
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    /**
+     * Sends a request with a body using the configuration of the actual {@link GenericRequestSession} instance.
+     *
+     * @param typeClass Type to cast the response data.
+     * @param body      A string in json format to send as the body.
+     * @return The response data casted to the supplied type.
+     * @throws ResponseException If theres an error with the request.
+     */
+    public <T> T sendRequestWithBody(Class<T> typeClass, String body) throws ResponseException {
+        BufferedReader response;
+
+        try {
+            OutputStream output = connection.getOutputStream();
+
+            output.write(body.getBytes());
             output.flush();
 
             if (connection.getResponseCode() != responseCode) {

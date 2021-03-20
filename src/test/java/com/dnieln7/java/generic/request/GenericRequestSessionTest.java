@@ -3,12 +3,11 @@ package com.dnieln7.java.generic.request;
 
 import com.dnieln7.java.generic.request.exception.BuilderException;
 import com.dnieln7.java.generic.request.utils.RequestMethod;
-import com.dnieln7.java.generic.request.utils.RequestProperties;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 
-import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -24,7 +23,6 @@ import java.util.logging.Logger;
 @TestMethodOrder(OrderAnnotation.class)
 @DisplayName("When running GenericRequestSession")
 public class GenericRequestSessionTest {
-
     //<editor-fold desc="Data classes">
     private static class Product {
         private int id;
@@ -200,27 +198,29 @@ public class GenericRequestSessionTest {
     }
     //</editor-fold>
 
+    private final Map<String, String> JSON_PROPERTIES = Map.of(
+            "Content-Type", "application/json",
+            "Accept", "application/json"
+    );
+
     private TestInfo testInfo;
     private TestReporter testReporter;
-    private GenericRequestSession.Builder<Seller> sellerSessionBuilder;
-    private GenericRequestSession.Builder<Seller[]> sellersSessionBuilder;
+    private GenericRequestSession.Builder sellerSessionBuilder;
+    private GenericRequestSession.Builder sellersSessionBuilder;
 
     @BeforeEach
     public void setUp(TestInfo testInfo, TestReporter testReporter) {
         this.testInfo = testInfo;
         this.testReporter = testReporter;
 
-        this.sellerSessionBuilder = new GenericRequestSession.Builder<Seller>()
-                .ofType(Seller.class)
-                .withRequestProperties(RequestProperties.JSON_PROPERTIES);
+        this.sellerSessionBuilder = new GenericRequestSession.Builder("http://localhost:8080/sellers")
+                .withRequestProperties(JSON_PROPERTIES);
 
-        this.sellersSessionBuilder = new GenericRequestSession.Builder<Seller[]>()
-                .to("http://localhost:8080/sellers")
-                .ofType(Seller[].class)
+        this.sellersSessionBuilder = new GenericRequestSession.Builder("http://localhost:8080/sellers")
                 .withMethod(RequestMethod.GET)
                 .withResponseCode(200)
                 .withOutput(false)
-                .withRequestProperties(RequestProperties.JSON_PROPERTIES);
+                .withRequestProperties(JSON_PROPERTIES);
 
         this.testReporter.publishEntry("Start");
     }
@@ -249,8 +249,7 @@ public class GenericRequestSessionTest {
                 "Phone 2"
         );
 
-        GenericRequestSession<Seller> session1 = this.sellerSessionBuilder
-                .to("http://localhost:8080/sellers")
+        GenericRequestSession session1 = this.sellerSessionBuilder
                 .withMethod(RequestMethod.POST)
                 .withOutput(true)
                 .withResponseCode(200)
@@ -258,19 +257,18 @@ public class GenericRequestSessionTest {
 
 
         Seller result1 = Assertions.assertDoesNotThrow(
-                () -> session1.sendRequestWithArgs(seller1),
+                () -> session1.sendRequestWithBody(Seller.class, seller1),
                 () -> "Should not throw any exceptions"
         );
 
-        GenericRequestSession<Seller> session2 = this.sellerSessionBuilder
-                .to("http://localhost:8080/sellers")
+        GenericRequestSession session2 = this.sellerSessionBuilder
                 .withMethod(RequestMethod.POST)
                 .withOutput(true)
                 .withResponseCode(200)
                 .build();
 
         Seller result2 = Assertions.assertDoesNotThrow(
-                () -> session2.sendRequestWithArgs(seller2),
+                () -> session2.sendRequestWithBody(Seller.class, seller2),
                 () -> "Should not throw any exceptions"
         );
 
@@ -288,10 +286,10 @@ public class GenericRequestSessionTest {
                 "Running " + testInfo.getDisplayName() + " with tags " + testInfo.getTags()
         );
 
-        GenericRequestSession<Seller[]> session = sellersSessionBuilder.build();
+        GenericRequestSession session = sellersSessionBuilder.build();
 
         List<Seller> sellers = Assertions.assertDoesNotThrow(
-                () -> Arrays.asList(session.sendRequest().clone()),
+                () -> session.sendRequestExpectingList(Seller[].class),
                 () -> "Should not throw any exceptions"
         );
 
@@ -309,24 +307,24 @@ public class GenericRequestSessionTest {
         );
 
         // Get sellers
-        GenericRequestSession<Seller[]> s = sellersSessionBuilder.build();
+        GenericRequestSession s = sellersSessionBuilder.build();
 
         List<Seller> sellers = Assertions.assertDoesNotThrow(
-                () -> Arrays.asList(s.sendRequest().clone()),
+                () -> s.sendRequestExpectingList(Seller[].class),
                 () -> "Should not throw any exceptions"
         );
 
         assert !sellers.isEmpty();
 
         // Get the first seller on the list
-        GenericRequestSession<Seller> session = this.sellerSessionBuilder
+        GenericRequestSession session = this.sellerSessionBuilder
                 .to("http://localhost:8080/sellers/" + sellers.get(0).getId())
                 .withMethod(RequestMethod.GET)
                 .withResponseCode(200)
                 .build();
 
         Seller seller = Assertions.assertDoesNotThrow(
-                session::sendRequest,
+                () -> session.sendRequest(Seller.class),
                 () -> "Should not throw any exceptions"
         );
 
@@ -347,10 +345,10 @@ public class GenericRequestSessionTest {
         );
 
         // Get sellers
-        GenericRequestSession<Seller[]> s = sellersSessionBuilder.build();
+        GenericRequestSession s = sellersSessionBuilder.build();
 
         List<Seller> sellers = Assertions.assertDoesNotThrow(
-                () -> Arrays.asList(s.sendRequest().clone()),
+                () -> s.sendRequestExpectingList(Seller[].class),
                 () -> "Should not throw any exceptions"
         );
 
@@ -364,7 +362,7 @@ public class GenericRequestSessionTest {
                 "Phone Updated"
         );
 
-        GenericRequestSession<Seller> session = sellerSessionBuilder
+        GenericRequestSession session = sellerSessionBuilder
                 .to("http://localhost:8080/sellers/" + sellerToSend.getId())
                 .withMethod(RequestMethod.PUT)
                 .withResponseCode(200)
@@ -372,7 +370,7 @@ public class GenericRequestSessionTest {
                 .build();
 
         Seller sellerToGet = Assertions.assertDoesNotThrow(
-                () -> session.sendRequestWithArgs(sellerToSend),
+                () -> session.sendRequestWithBody(Seller.class, sellerToSend),
                 () -> "Should not throw any exceptions"
         );
 
@@ -395,17 +393,17 @@ public class GenericRequestSessionTest {
 
 
         // Get sellers
-        GenericRequestSession<Seller[]> s = sellersSessionBuilder.build();
+        GenericRequestSession s = sellersSessionBuilder.build();
 
         List<Seller> sellers = Assertions.assertDoesNotThrow(
-                () -> Arrays.asList(s.sendRequest().clone()),
+                () -> s.sendRequestExpectingList(Seller[].class),
                 () -> "Should not throw any exceptions"
         );
 
         assert !sellers.isEmpty();
 
         // Delete the first seller on the list
-        GenericRequestSession<Seller> session = sellerSessionBuilder
+        GenericRequestSession session = sellerSessionBuilder
                 .to("http://localhost:8080/sellers/" + sellers.get(0).getId())
                 .withMethod(RequestMethod.DELETE)
                 .withResponseCode(200)
@@ -413,7 +411,7 @@ public class GenericRequestSessionTest {
                 .build();
 
         Seller deletedSeller = Assertions.assertDoesNotThrow(
-                session::sendRequest,
+                () -> session.sendRequest(Seller.class),
                 () -> "Should not throw any exceptions"
         );
     }

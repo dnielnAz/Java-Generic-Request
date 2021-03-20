@@ -20,7 +20,7 @@ public class ResponseException extends Exception {
     /**
      * @return Error body returned by the server on a {@link JsonObject} format.
      */
-    public JsonObject getServerError() {
+    public JsonObject getServerErrors() {
         return serverError;
     }
 }
